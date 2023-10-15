@@ -1,5 +1,5 @@
 [package]
-name = "sih"
+name = "sentry"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,12 +10,11 @@ axum = { version = "0.6.20", features = ["http2", "json", "macros", "matched-pat
 chrono = "0.4.31"
 console-subscriber = "0.1.10"
 hyper = { version = "0.14.27", features = ["full"] }
-mysql = "24.0.0"
+mysql = { version = "24.0.0", default-features = false, features = ["minimal", "rustls-tls"] }
 serde = { version = "1.0.188", features = ["std", "derive"] }
 serde_json = "1.0.106"
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-util = { version = "0.7.8", features = ["full"] }
 tower-http = { version = "0.4.4", features = ["trace", "cors"] }
 tracing = "0.1.37"
-tracing-appender = "0.2.2"
 tracing-subscriber = "0.3.17"
