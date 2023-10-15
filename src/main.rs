@@ -1,11 +1,11 @@
 use axum::extract::State;
+use clap::Parser;
 use axum::{
     extract::Json,
     http::{header::CONTENT_TYPE, HeaderMap, Method, StatusCode},
     routing::{get, post},
     Router,
 };
-use hyper::body::Bytes;
 use mysql::prelude::Queryable;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -19,6 +19,14 @@ struct AppState {
     db_pool: mysql::Pool,
 }
 
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value = "8080")]
+    port: u16,
+    #[clap(short, long, default_value = "/")]
+    route: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // initialize tracing
@@ -26,6 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_max_level(tracing::Level::DEBUG)
         .init();
+
+    // parse command line arguments
+    let args = Args::parse();
 
     // initialize database connection
     let url = std::env::var("DATABASE_URL").expect(
@@ -47,26 +58,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/", get(|| async { "Welcome!" }))
         .route("/log", get(list))
-        .route("/log/new", post(logs))
-        .layer(
-            CorsLayer::new()
+        .route("/log/new", post(logs));
+
+    let cors = CorsLayer::new()
                 .allow_methods([Method::GET, Method::POST])
                 .allow_headers([CONTENT_TYPE])
-                .allow_origin(Any),
-        )
-        .layer(TraceLayer::new_for_http())
-        .with_state(app_state);
-
-    let port = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(8080);
+                .allow_origin(Any);
 
     // run it with hyper on localhost
-    let addr = format!("[::]:{}", port).parse().unwrap();
+    let routing = Router::new()
+        .nest(&args.route, app)
+        .layer(cors)
+        .layer(TraceLayer::new_for_http())
+        .with_state(app_state);
+    let addr = format!("[::]:{}", args.port).parse().unwrap();
     let server = axum::Server::bind(&addr);
     tracing::debug!("Listening on {}", addr);
-    server.serve(app.into_make_service()).await.unwrap();
+    server.serve(routing.into_make_service()).await.unwrap();
 
     tracing::info!("Shutting down");
     Ok(())
